@@ -26,29 +26,42 @@ def process_text(json_data: Dict[str, List[Dict[str, List]]]) -> str:
     :param json_data: A dictionary loaded from a JSON file containing OCR data obtained from PaddleOCR.
     :return: A string containing the processed text with preserved original structure.
     """
+
     threshold = 50
+    tab_threshold = 100
     result = []
+
     for page in json_data.values():
         page_result = []
+        leftmost_x = min(line['position'][0][0] for line in page)
         prev_line = page[0]['text']
         if page[0]['confidence'] < 0.95:
             prev_line = CorrectOCR.check_spelling(prev_line)
+
         for i in range(1, len(page)):
             current_line = page[i]['text']
             if page[i]['confidence'] < 0.95:
                 current_line = CorrectOCR.check_spelling(current_line)
+
             prev_end_x = page[i - 1]['position'][1][0]
             current_start_x = page[i]['position'][0][0]
             prev_y = page[i - 1]['position'][0][1]
             current_y = page[i]['position'][0][1]
+
             if abs(current_start_x - prev_end_x) < threshold and abs(current_y - prev_y) < threshold:
                 if prev_line.endswith('-'):
                     prev_line = prev_line.removesuffix('-') + current_line
                 else:
                     prev_line += ' ' + current_line
             else:
+                if abs(current_start_x - leftmost_x) > tab_threshold:
+                    prev_line += '\t'
+                if abs(current_y - prev_y) > threshold:
+                    page_result.append('')
                 page_result.append(prev_line)
                 prev_line = current_line
+
         page_result.append(prev_line)
         result.append('\n'.join(page_result))
+
     return '\n\n'.join(result)
